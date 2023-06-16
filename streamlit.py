@@ -65,7 +65,7 @@ def query_message(
     df: pd.DataFrame,
     model: str,
     token_budget: int,
-    introduction='Use the below documentation from the company Fiddler to answer the subsequent question. Also, if possible, give me the reference URLs according to the following instructions. The way to create the URLs is: if you are discussing a client method or an API reference add "https://docs.fiddler.ai/reference/" before the "slug" value of the document. If it is Guide documentation add "https://docs.fiddler.ai/docs/" before before the "slug" value of the document. Only use the value following "slug:" to create the URLs and do not use page titles for slugs. If you are using quickstart notebooks, do not generate references. Note that if a user asks about uploading events, it means the same as publishing events. If the answer cannot be found in the documentation, write "I could not find an answer."'
+    introduction='You are a tool called Fiddler Chatbot and your purpose is to use the below documentation from the company Fiddler to answer the subsequent documentation questions. Also, if possible, give me the reference URLs according to the following instructions. The way to create the URLs is: if you are discussing a client method or an API reference add "https://docs.fiddler.ai/reference/" before the "slug" value of the document. If it is Guide documentation add "https://docs.fiddler.ai/docs/" before before the "slug" value of the document. Only use the value following "slug:" to create the URLs and do not use page titles for slugs. If you are using quickstart notebooks, do not generate references. Note that if a user asks about uploading events, it means the same as publishing events. If the answer cannot be found in the documentation, write "I could not find an answer."'
 
 ):
     """Return a message for GPT, with relevant source texts pulled from a dataframe."""
@@ -92,7 +92,7 @@ def ask(
     print_message: bool = False,
     temperature: int = 0,
     # chat_history=None,
-    introduction='Use the below documentation from the company Fiddler to answer the subsequent question. Also, if possible, give me the reference URLs according to the following instructions. The way to create the URLs is: if you are discussing a client method or an API reference add "https://docs.fiddler.ai/reference/" before the "slug" value of the document. If it is Guide documentation add "https://docs.fiddler.ai/docs/" before before the "slug" value of the document. Only use the value following "slug:" to create the URLs and do not use page titles for slugs. If you are using quickstart notebooks, do not generate references. Note that if a user asks about uploading events, it means the same as publishing events. If the answer cannot be found in the documentation, write "I could not find an answer."'
+    introduction='You are a tool called Fiddler Chatbot and your purpose is to use the below documentation from the company Fiddler to answer the subsequent documentation questions. Also, if possible, give me the reference URLs according to the following instructions. The way to create the URLs is: if you are discussing a client method or an API reference add "https://docs.fiddler.ai/reference/" before the "slug" value of the document. If it is Guide documentation add "https://docs.fiddler.ai/docs/" before before the "slug" value of the document. Only use the value following "slug:" to create the URLs and do not use page titles for slugs. If you are using quickstart notebooks, do not generate references. Note that if a user asks about uploading events, it means the same as publishing events. If the answer cannot be found in the documentation, write "I could not find an answer."'
 
 ):
     """Answers a query using GPT and a dataframe of relevant texts and embeddings."""
@@ -127,30 +127,9 @@ def main():
     st.image('poweredby.png', width=250)
     st.title("Fiddler Chatbot")
 
-
-
-    # st.text_input("Enter some text", key="dummy", on_change= on_enter_pressed, )#kwargs={'text':st.session_state.dummy}
-    # st.session_state.dummy=text_val
-    # Add a callback for the Enter key press
-    # text_input_value.on_change(on_enter_pressed)
-
-    # User input #user_input =
+    # User input
     st.text_input("You:", key="query", on_change=ask)
 
-    # col1, _, col2 = st.columns([10, 1, 10])
-
-    # with col1:
-    #     st.write("test")
-        # asking = st.button("Ask")
-
-        # Generate response
-        # if asking:
-        #     if user_input.strip() != "":
-        #         st.text("Bot:")
-        #         st.session_state[ANSWER], st.session_state[CHAT_HISTORY] = ask(user_input, chat_history=st.session_state[CHAT_HISTORY])
-        #     else:
-        #         st.warning("Please enter a query.")
-    # with col2:
     if st.button("Reset Chat History"):
         st.session_state[CHAT_HISTORY] = []
 
