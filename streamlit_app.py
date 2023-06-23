@@ -5,6 +5,18 @@ import openai
 import tiktoken
 from scipy import spatial
 import ast
+import gspread
+from google.oauth2 import service_account
+
+# Create a connection object.
+credentials = service_account.Credentials.from_service_account_info(
+    st.secrets["gcp_service_account"],
+    scopes=[
+        "https://www.googleapis.com/auth/spreadsheets","https://www.googleapis.com/auth/drive"
+    ],
+)
+# conn = connect(credentials=credentials)
+client=gspread.authorize(credentials)
 
 
 openai.api_key = os.environ.get('OPENAI_API_KEY')
@@ -15,17 +27,47 @@ df['embedding'] = df['embedding'].apply(ast.literal_eval)
 
 CHAT_HISTORY = 'chat_history'
 ANSWER = 'answer'
+COL_RANGE = 'A:B'
+# THUMB_UP = "thumbs_up_button"
+# THUMB_DOWN = "thumbs_down_button"
+
 
 if "query" not in st.session_state:
     st.session_state["query"] = ""
 
 if "dummy" not in st.session_state:
     st.session_state["dummy"] = "blabla"
+
+# if THUMB_DOWN not in st.session_state:
+#     st.session_state[THUMB_DOWN] = None
+
+# if THUMB_UP not in st.session_state:
+#     st.session_state[THUMB_UP] = None
+
 if CHAT_HISTORY not in st.session_state:
     st.session_state[CHAT_HISTORY] = []
 
 if ANSWER not in st.session_state:
     st.session_state[ANSWER] = None
+
+
+
+
+
+def store_query(
+        query: str,
+        response: str):
+
+    sheet_url = st.secrets["private_gsheets_url"]  # this information should be included in streamlit secret
+    sheet = client.open_by_url(sheet_url).sheet1
+    existing_data = sheet.get(COL_RANGE)
+    existing_data.append([query, response])
+    sheet.update(COL_RANGE, existing_data)
+    # st.success('Data has been written to Google Sheets')
+    return
+
+
+
 
 # search function
 def strings_ranked_by_relatedness(
@@ -117,7 +159,8 @@ def ask(
     response_message = response["choices"][0]["message"]["content"]
     chat_history.append("Bot response: "+response_message)
     st.session_state[ANSWER], st.session_state[CHAT_HISTORY] = response_message, chat_history
-    return response_message, chat_history
+    store_query(query, response_message)
+    return
 
 
 # def on_enter_pressed():
@@ -132,14 +175,23 @@ def main():
 
     if st.button("Reset Chat History"):
         st.session_state[CHAT_HISTORY] = []
+        st.session_state[ANSWER] = None
 
     if st.session_state[ANSWER] is not None:
         st.text("Bot:")
         st.write(st.session_state[ANSWER])
+        # Display thumbs up and thumbs down buttons
+        # col1,col2 = st.columns([0.5,5])
+        # with col1:
+        #     st.button("👍", key="thumbs_up_button")
+        # with col2:
+        #     st.button("👎", key="thumbs_down_button")
 
-    # Display chat history
-    st.header("Chat History")
-    st.write("\n\n".join(st.session_state[CHAT_HISTORY]))
+    with st.container():
+        st.header("Chat History")
+        st.write("\n\n".join(st.session_state[CHAT_HISTORY]))
+
+
 
 if __name__ == "__main__":
     main()
