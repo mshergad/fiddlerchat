@@ -28,9 +28,10 @@ df['embedding'] = df['embedding'].apply(ast.literal_eval)
 CHAT_HISTORY = 'chat_history'
 ANSWER = 'answer'
 COL_RANGE = 'A:B'
-# THUMB_UP = "thumbs_up_button"
-# THUMB_DOWN = "thumbs_down_button"
-
+THUMB_UP = "thumbs_up_button"
+THUMB_DOWN = "thumbs_down_button"
+WHATEVER = "neutral"
+COMMENT = "comment"
 
 if "query" not in st.session_state:
     st.session_state["query"] = ""
@@ -38,14 +39,20 @@ if "query" not in st.session_state:
 if "dummy" not in st.session_state:
     st.session_state["dummy"] = "blabla"
 
-# if THUMB_DOWN not in st.session_state:
-#     st.session_state[THUMB_DOWN] = None
+if THUMB_DOWN not in st.session_state:
+    st.session_state[THUMB_DOWN] = None
 
-# if THUMB_UP not in st.session_state:
-#     st.session_state[THUMB_UP] = None
+if THUMB_UP not in st.session_state:
+    st.session_state[THUMB_UP] = None
+
+if WHATEVER not in st.session_state:
+    st.session_state[WHATEVER] = -1
 
 if CHAT_HISTORY not in st.session_state:
     st.session_state[CHAT_HISTORY] = []
+
+if COMMENT not in st.session_state:
+    st.session_state[COMMENT] = ""
 
 if ANSWER not in st.session_state:
     st.session_state[ANSWER] = None
@@ -60,12 +67,36 @@ def store_query(
 
     sheet_url = st.secrets["private_gsheets_url"]  # this information should be included in streamlit secret
     sheet = client.open_by_url(sheet_url).sheet1
-    existing_data = sheet.get(COL_RANGE)
-    existing_data.append([query, response])
-    sheet.update(COL_RANGE, existing_data)
+    # existing_data = sheet.get(COL_RANGE)
+    # existing_data.append([query, response])
+    sheet.append_row([query, response], table_range=COL_RANGE)
     # st.success('Data has been written to Google Sheets')
     return
 
+
+def store_feedback(feedback=-1):
+
+    sheet_url = st.secrets["private_gsheets_url"]  # this information should be included in streamlit secret
+    sheet = client.open_by_url(sheet_url).sheet1
+    q_list = sheet.col_values(2)
+    rows = len(q_list)
+    # print(st.session_state.query)
+    if q_list[rows-1] == st.session_state[ANSWER]:
+        sheet.update(f'C{rows}', feedback)
+    # st.success('Data has been written to Google Sheets')
+    return
+
+def store_comment():
+
+    sheet_url = st.secrets["private_gsheets_url"]  # this information should be included in streamlit secret
+    sheet = client.open_by_url(sheet_url).sheet1
+    q_list = sheet.col_values(2)
+    rows = len(q_list)
+    # print(st.session_state.query)
+    if q_list[rows-1] == st.session_state[ANSWER]:
+        sheet.update(f'D{rows}', st.session_state[COMMENT])
+    st.success('Your comment is noted!')
+    return
 
 
 
@@ -138,28 +169,29 @@ def ask(
 
 ):
     """Answers a query using GPT and a dataframe of relevant texts and embeddings."""
-    query = st.session_state.query
-    chat_history = st.session_state[CHAT_HISTORY]
-    if chat_history is None:
-        chat_history = []
-    chat_history.append("User Query: "+query)
-    # query = "\n".join(chat_history)
-    message = query_message(query, df=df, model=model, token_budget=token_budget, introduction = introduction)
-    if print_message:
-        print(message)
-    messages = [
-        {"role": "system", "content": "You answer questions about Fiddler documentation."},
-        {"role": "user", "content": message},
-    ]
-    response = openai.ChatCompletion.create(
-        model=model,
-        messages=messages,
-        temperature=temperature
-    )
-    response_message = response["choices"][0]["message"]["content"]
-    chat_history.append("Bot response: "+response_message)
-    st.session_state[ANSWER], st.session_state[CHAT_HISTORY] = response_message, chat_history
-    store_query(query, response_message)
+    if st.session_state.query:
+        query = st.session_state.query
+        chat_history = st.session_state[CHAT_HISTORY]
+        if chat_history is None:
+            chat_history = []
+        chat_history.append("User Query: "+query)
+        # query = "\n".join(chat_history)
+        message = query_message(query, df=df, model=model, token_budget=token_budget, introduction = introduction)
+        if print_message:
+            print(message)
+        messages = [
+            {"role": "system", "content": "You answer questions about Fiddler documentation."},
+            {"role": "user", "content": message},
+        ]
+        response = openai.ChatCompletion.create(
+            model=model,
+            messages=messages,
+            temperature=temperature
+        )
+        response_message = response["choices"][0]["message"]["content"]
+        chat_history.append("Bot response: "+response_message)
+        st.session_state[ANSWER], st.session_state[CHAT_HISTORY] = response_message, chat_history
+        store_query(query, response_message)
     return
 
 
@@ -171,7 +203,7 @@ def main():
     st.title("Fiddler Chatbot")
 
     # User input
-    st.text_input("You:", key="query", on_change=ask)
+    st.text_input("Your Question:", key="query", on_change=ask)
 
     if st.button("Reset Chat History"):
         st.session_state[CHAT_HISTORY] = []
@@ -181,11 +213,17 @@ def main():
         st.text("Bot:")
         st.write(st.session_state[ANSWER])
         # Display thumbs up and thumbs down buttons
-        # col1,col2 = st.columns([0.5,5])
-        # with col1:
-        #     st.button("👍", key="thumbs_up_button")
-        # with col2:
-        #     st.button("👎", key="thumbs_down_button")
+        col1, col2, col3 = st.columns([0.5, 0.5, 5])
+        with col1:
+            if not st.session_state[THUMB_UP] or st.session_state[THUMB_UP] is None:
+                st.button("👍", key="thumbs_up_button", on_click=store_feedback, kwargs={'feedback':1})
+        with col2:
+            if not st.session_state[THUMB_DOWN] or st.session_state[THUMB_DOWN] is None:
+                st.button("👎", key="thumbs_down_button", on_click=store_feedback, kwargs={'feedback':0})
+        with col3:
+            st.button("🤷", key="neutral", on_click=store_feedback)
+            # User input
+        st.text_input("Any comments on the bot response?", key="comment", on_change=store_comment)
 
     with st.container():
         st.header("Chat History")
