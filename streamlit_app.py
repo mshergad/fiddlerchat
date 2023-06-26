@@ -199,7 +199,7 @@ def ask(
 #     st.write("Enter key pressed! Entered text:", st.session_state.dummy)
 # Streamlit app
 def main():
-    st.image('poweredby.png', width=250)
+    st.image('poweredby.jpg', width=550)
     st.title("Fiddler Chatbot")
 
     # User input
