@@ -223,7 +223,7 @@ def main():
         with col3:
             st.button("🤷", key="neutral", on_click=store_feedback)
             # User input
-        st.text_input("Any comments on the bot response?", key="comment", on_change=store_comment)
+        st.text_input("Any comments on the bot response?", key="comment", on_change=store_comment, value="This response is helpful/incorrect because...")
 
     with st.container():
         st.header("Chat History")
