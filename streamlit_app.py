@@ -16,7 +16,7 @@ credentials = service_account.Credentials.from_service_account_info(
     ],
 )
 # conn = connect(credentials=credentials)
-client=gspread.authorize(credentials)
+client = gspread.authorize(credentials)
 
 
 openai.api_key = os.environ.get('OPENAI_API_KEY')
@@ -27,7 +27,7 @@ df['embedding'] = df['embedding'].apply(ast.literal_eval)
 
 CHAT_HISTORY = 'chat_history'
 ANSWER = 'answer'
-COL_RANGE = 'A:B'
+COL_RANGE = 'A:F'
 THUMB_UP = "thumbs_up_button"
 THUMB_DOWN = "thumbs_down_button"
 WHATEVER = "neutral"
@@ -46,7 +46,7 @@ if THUMB_UP not in st.session_state:
     st.session_state[THUMB_UP] = None
 
 if WHATEVER not in st.session_state:
-    st.session_state[WHATEVER] = -1
+    st.session_state[WHATEVER] = None
 
 if CHAT_HISTORY not in st.session_state:
     st.session_state[CHAT_HISTORY] = []
@@ -63,13 +63,15 @@ if ANSWER not in st.session_state:
 
 def store_query(
         query: str,
-        response: str):
+        response: str,
+        query_embed,
+        response_embed):
 
     sheet_url = st.secrets["private_gsheets_url"]  # this information should be included in streamlit secret
-    sheet = client.open_by_url(sheet_url).sheet1
+    sheet = client.open_by_url(sheet_url).get_worksheet(1)
     # existing_data = sheet.get(COL_RANGE)
     # existing_data.append([query, response])
-    sheet.append_row([query, response], table_range=COL_RANGE)
+    sheet.append_row([query, response, '', '', str(query_embed), str(response_embed)], table_range=COL_RANGE)
     # st.success('Data has been written to Google Sheets')
     return
 
@@ -77,7 +79,7 @@ def store_query(
 def store_feedback(feedback=-1):
 
     sheet_url = st.secrets["private_gsheets_url"]  # this information should be included in streamlit secret
-    sheet = client.open_by_url(sheet_url).sheet1
+    sheet = client.open_by_url(sheet_url).get_worksheet(1)
     q_list = sheet.col_values(2)
     rows = len(q_list)
     # print(st.session_state.query)
@@ -89,7 +91,7 @@ def store_feedback(feedback=-1):
 def store_comment():
 
     sheet_url = st.secrets["private_gsheets_url"]  # this information should be included in streamlit secret
-    sheet = client.open_by_url(sheet_url).sheet1
+    sheet = client.open_by_url(sheet_url).get_worksheet(1)
     q_list = sheet.col_values(2)
     rows = len(q_list)
     # print(st.session_state.query)
@@ -119,7 +121,7 @@ def strings_ranked_by_relatedness(
     ]
     strings_and_relatednesses.sort(key=lambda x: x[1], reverse=True)
     strings, relatednesses = zip(*strings_and_relatednesses)
-    return strings[:top_n], relatednesses[:top_n]
+    return strings[:top_n], relatednesses[:top_n], query_embedding
 
 
 # models
@@ -142,7 +144,7 @@ def query_message(
 
 ):
     """Return a message for GPT, with relevant source texts pulled from a dataframe."""
-    strings, relatednesses = strings_ranked_by_relatedness(query, df)
+    strings, relatednesses, query_embed = strings_ranked_by_relatedness(query, df)
     question = f"\n\nQuestion: {query}"
     message = introduction
     for string in strings:
@@ -154,7 +156,7 @@ def query_message(
             break
         else:
             message += next_article
-    return message + question
+    return message + question, query_embed
 
 
 def ask(
@@ -176,7 +178,7 @@ def ask(
             chat_history = []
         chat_history.append("User Query: "+query)
         # query = "\n".join(chat_history)
-        message = query_message(query, df=df, model=model, token_budget=token_budget, introduction = introduction)
+        message, query_embed = query_message(query, df=df, model=model, token_budget=token_budget, introduction = introduction)
         if print_message:
             print(message)
         messages = [
@@ -189,9 +191,14 @@ def ask(
             temperature=temperature
         )
         response_message = response["choices"][0]["message"]["content"]
+        response_embedding_response = openai.Embedding.create(
+            model=EMBEDDING_MODEL,
+            input=response_message,
+        )
+        response_embed = response_embedding_response["data"][0]["embedding"]
         chat_history.append("Bot response: "+response_message)
         st.session_state[ANSWER], st.session_state[CHAT_HISTORY] = response_message, chat_history
-        store_query(query, response_message)
+        store_query(query, response_message, query_embed, response_embed)
     return
 
 
@@ -212,6 +219,7 @@ def main():
     if st.session_state[ANSWER] is not None:
         st.text("Bot:")
         st.write(st.session_state[ANSWER])
+        st.text_input("Any comments on the bot response?", key="comment", on_change=store_comment, value="")
         # Display thumbs up and thumbs down buttons
         col1, col2, col3 = st.columns([0.5, 0.5, 5])
         with col1:
@@ -221,9 +229,9 @@ def main():
             if not st.session_state[THUMB_DOWN] or st.session_state[THUMB_DOWN] is None:
                 st.button("👎", key="thumbs_down_button", on_click=store_feedback, kwargs={'feedback':0})
         with col3:
-            st.button("🤷", key="neutral", on_click=store_feedback)
+            if not st.session_state[WHATEVER] or st.session_state[WHATEVER] is None:
+                st.button("🤷", key="neutral", on_click=store_feedback)
             # User input
-        st.text_input("Any comments on the bot response?", key="comment", on_change=store_comment, value="This response is helpful/incorrect because...")
 
     with st.container():
         st.header("Chat History")
