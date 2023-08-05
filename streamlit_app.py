@@ -20,7 +20,7 @@ client = gspread.authorize(credentials)
 
 
 openai.api_key = os.environ.get('OPENAI_API_KEY')
-embeddings_path = "./all_1_8.csv"
+embeddings_path = "./old_all_1_8_pruned.csv"
 df = pd.read_csv(embeddings_path)
 # convert embeddings from CSV str type back to list type
 df['embedding'] = df['embedding'].apply(ast.literal_eval)
